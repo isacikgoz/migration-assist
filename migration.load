@@ -1,0 +1,43 @@
+LOAD DATABASE
+     FROM      mysql://root:mostest@localhost:3306/mattermost_test
+     INTO      pgsql://mmuser:mostest@localhost:8765/mattermost_test
+
+WITH data only,
+     workers = 8, concurrency = 1,
+     multiple readers per thread, rows per range = 50000,
+     create no tables, create no indexes,
+     preserve index names
+
+SET PostgreSQL PARAMETERS
+     maintenance_work_mem to '128MB',
+     work_mem to '12MB'
+
+SET MySQL PARAMETERS
+      net_read_timeout  = '120',
+      net_write_timeout = '120'
+
+CAST column Channels.Type to "channel_type" drop typemod,
+     column Teams.Type to "team_type" drop typemod,
+     column UploadSessions.Type to "upload_session_type" drop typemod,
+     column ChannelBookmarks.Type to "channel_bookmark_type" drop typemod,
+     column Drafts.Priority to text,
+     type int when (= precision 11) to integer drop typemod,
+     type bigint when (= precision 20) to bigint drop typemod,
+     type text to varchar drop typemod,
+     type tinyint when (<= precision 4) to boolean using tinyint-to-boolean,
+     type json to jsonb drop typemod
+
+EXCLUDING TABLE NAMES MATCHING ~<IR_>, ~<focalboard>, 'schema_migrations', 'db_migrations'
+
+BEFORE LOAD DO
+     $$ ALTER SCHEMA public RENAME TO mattermost_test; $$,
+     $$ DROP INDEX IF EXISTS mattermost_test.idx_posts_message_txt; $$,
+     $$ DROP INDEX IF EXISTS mattermost_test.idx_fileinfo_content_txt; $$
+
+AFTER LOAD DO
+     $$ UPDATE mattermost_test.db_migrations set name='add_createat_to_teamembers' where version=92; $$,
+     $$ CREATE INDEX IF NOT EXISTS idx_posts_message_txt ON mattermost_test.posts USING gin(to_tsvector('english', message)); $$,
+     $$ CREATE INDEX IF NOT EXISTS idx_fileinfo_content_txt ON mattermost_test.fileinfo USING gin(to_tsvector('english', content)); $$,
+     $$ ALTER SCHEMA mattermost_test RENAME TO public; $$,
+     $$ SELECT pg_catalog.set_config('search_path', '"$user", public', false); $$,
+     $$ ALTER USER mmuser SET SEARCH_PATH TO 'public'; $$;

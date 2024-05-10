@@ -1,0 +1,1 @@
+SELECT COUNT(*) FROM Audits WHERE LENGTH(ExtraInfo) > 1024;
