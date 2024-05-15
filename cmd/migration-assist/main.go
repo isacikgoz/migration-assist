@@ -20,6 +20,8 @@ var root = &cobra.Command{
 }
 
 func main() {
+	root.PersistentFlags().Bool("verbose", false, "Becomes verbose")
+
 	root.AddCommand(
 		commands.SourceCheckCmd(),
 		commands.TargetCheckCmd(),
