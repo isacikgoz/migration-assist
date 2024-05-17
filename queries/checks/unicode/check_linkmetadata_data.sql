@@ -1,0 +1,1 @@
+CALL ChekUnsupportedUnicode('LinkMetadata', 'Data');

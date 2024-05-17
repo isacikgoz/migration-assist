@@ -9,10 +9,10 @@ import (
 
 func GeneratePgloaderConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "gen-pgloader-config",
+		Use:     "pgloader",
 		Short:   "Generates a pgLoader configuration from DSN values",
 		RunE:    runGeneratePgloaderConfigCmdF,
-		Example: "migration-assist gen-pgloader-config \\\n--postgres=\"postgres://mmuser:mostest@localhost:8765/mattermost_test?sslmode=disable\" \\\n--mysql=\"root:mostest@tcp(localhost:3306)/mattermost_test\" \\\n--drop-indexes=false",
+		Example: "  migration-assist pgloader \\\n--postgres=\"postgres://mmuser:mostest@localhost:8765/mattermost_test?sslmode=disable\" \\\n--mysql=\"root:mostest@tcp(localhost:3306)/mattermost_test\"",
 	}
 
 	// Required flags
@@ -23,7 +23,6 @@ func GeneratePgloaderConfigCmd() *cobra.Command {
 
 	// Optional flags
 	cmd.Flags().String("output", "", "The filename of the generated configuration")
-	cmd.Flags().Bool("drop-indexes", true, "Adds clauses to drop full-text indexes before the migration")
 	return cmd
 }
 
@@ -32,12 +31,10 @@ func runGeneratePgloaderConfigCmdF(cmd *cobra.Command, _ []string) error {
 	postgresDSN, _ := cmd.Flags().GetString("postgres")
 
 	output, _ := cmd.Flags().GetString("output")
-	dropIndex, _ := cmd.Flags().GetBool("drop-indexes")
 
 	err := pgloader.GenerateConfigurationFile(output, pgloader.PgLoaderConfig{
-		MySQLDSN:            mysqlDSN,
-		PostgresDSN:         postgresDSN,
-		DropFullTextIndexes: dropIndex,
+		MySQLDSN:    mysqlDSN,
+		PostgresDSN: postgresDSN,
 	})
 	if err != nil {
 		return fmt.Errorf("could not generate config: %w", err)

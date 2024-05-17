@@ -1,1 +1,0 @@
-SELECT COUNT(*) FROM Posts WHERE Props LIKE '%\u0000%';

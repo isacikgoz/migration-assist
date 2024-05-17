@@ -19,9 +19,9 @@ Usage:
   migration-assist [command]
 
 Available Commands:
-  gen-pgloader-config Generates a pgLoader configuration from DSN values
-  source-check        Checks the MySQL database schema whether it is ready for the migration
-  target-check        Checks the Postgres database schema whether it is ready for the migration
+  pgloader      Generates a pgLoader configuration from DSN values
+  mysql         Checks the MySQL database schema whether it is ready for the migration
+  postgres      Checks the Postgres database schema whether it is ready for the migration
 ```
 
 The tool provides 3 utility commands to smooth the migration process
@@ -33,17 +33,15 @@ This sub-command helps administrators by generating a pgLoader configuration. To
 Example usage:
 
 ```
-$ migration-assist gen-pgloader-config \
+$ migration-assist pgloader \
 --postgres="postgres://mmuser:mostest@localhost:8765/mattermost_test?sslmode=disable" \
---mysql="root:mostest@tcp(localhost:3306)/mattermost_test" \
---drop-indexes=false
+--mysql="root:mostest@tcp(localhost:3306)/mattermost_test"
 ```
 
 Available flags:
 
 ```
---drop-indexes      Adds clauses to drop full-text indexes before the migration (default true)
--h, --help              help for gen-pgloader-config
+-h, --help          help for gen-pgloader-config
 --mysql string      DSN for MySQL
 --output string     The filename of the generated configuration
 --postgres string   DSN for Postgres
@@ -56,8 +54,7 @@ Runs several checks against the MySQL database and if any `--fix` flags are prov
 Example usage:
 
 ```
-$ migration-assist source-check \
---mysql="root:mostest@tcp(localhost:3306)/mattermost_test" \
+$ migration-assist mysql "root:mostest@tcp(localhost:3306)/mattermost_test" \
 --fix-unicode
 ```
 
@@ -67,8 +64,7 @@ Available flags:
 --fix-artifacts   Removes the artifacts from older versions of Mattermost
 --fix-unicode     Removes the unsupported unicode characters from MySQL tables
 --fix-varchar     Removes the rows with varchar overflow
--h, --help            help for source-check
---mysql string    DSN for MySQL
+-h, --help        help for source-check
 ```
 
 Please refer to [queries](queries) directory to see which queries will run to check or fix MySQL database.
@@ -80,18 +76,15 @@ Runs a few checks against the Postgres database. The command also downloads the 
 Example usage:
 
 ```
-migration-assist target-check \
---postgres="postgres://mmuser:mostest@localhost:8765/mattermost_test?sslmode=disable" \
+migration-assist postgres "postgres://mmuser:mostest@localhost:8765/mattermost_test?sslmode=disable" \
 --run-migrations
 ```
 
 Available flags:
 
 ```
---git string                  git binary to be executed if the repository will be cloned (default "git")
--h, --help                        help for target-check
+-h, --help                    help for target-check
 --mattermost-version string   Mattermost version to be cloned to run migrations (default "v8.1")
 --migrations-dir string       Migrations directory (should be used if mattermost-version is not supplied)
---postgres string             DSN for Postgres
 --run-migrations              Runs migrations for Postgres schema
 ```

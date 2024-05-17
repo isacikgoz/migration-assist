@@ -1,0 +1,1 @@
+CALL ChekUnsupportedUnicode('Threads', 'Participants');

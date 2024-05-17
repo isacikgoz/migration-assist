@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/spf13/cobra"
@@ -26,15 +25,12 @@ import (
 
 func SourceCheckCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "source-check",
+		Use:     "mysql",
 		Short:   "Checks the MySQL database schema whether it is ready for the migration",
 		RunE:    runSourceCheckCmdF,
-		Example: "migration-assist source-check \\\n--mysql=\"root:mostest@tcp(localhost:3306)/mattermost_test\" \\\n--fix-unicode",
+		Example: "  Rmigration-assist mysql \"root:mostest@tcp(localhost:3306)/mattermost_test\" \\\n--fix-unicode",
+		Args:    cobra.MinimumNArgs(1),
 	}
-
-	// Required flags
-	cmd.Flags().String("mysql", "", "DSN for MySQL")
-	_ = cmd.MarkFlagRequired("mysql")
 
 	// Optional flags
 	cmd.Flags().Bool("fix-artifacts", false, "Removes the artifacts from older versions of Mattermost")
@@ -48,23 +44,29 @@ func SourceCheckCmd() *cobra.Command {
 	return cmd
 }
 
-func runSourceCheckCmdF(cmd *cobra.Command, _ []string) error {
-	// ping mysql
-	mysqlDSN, _ := cmd.Flags().GetString("mysql")
-	verbose, _ := cmd.Flags().GetBool("verbose")
+func runSourceCheckCmdF(cmd *cobra.Command, args []string) error {
+	baseLogger := logger.NewLogger(os.Stderr, logger.Options{Timestamps: true})
+	var verboseLogger logger.LogInterface
 
-	mysqlDB, err := store.NewStore("mysql", mysqlDSN)
+	verbose, _ := cmd.Flags().GetBool("verbose")
+	if verbose {
+		verboseLogger = baseLogger
+	} else {
+		verboseLogger = logger.NewNopLogger()
+	}
+
+	mysqlDB, err := store.NewStore("mysql", args[0])
 	if err != nil {
 		return err
 	}
 	defer mysqlDB.Close()
 
-	fmt.Println("pinging mysql...")
+	baseLogger.Println("pinging mysql...")
 	err = mysqlDB.Ping()
 	if err != nil {
 		return fmt.Errorf("could not ping mysql: %w", err)
 	}
-	fmt.Println("connected to mysql successfully...")
+	baseLogger.Println("connected to mysql successfully...")
 
 	fullSchema, _ := cmd.Flags().GetBool("full-schema-check")
 	if fullSchema {
@@ -82,31 +84,30 @@ func runSourceCheckCmdF(cmd *cobra.Command, _ []string) error {
 		migrationsDir, _ := cmd.Flags().GetString("migrations-dir")
 		saveDiff, _ := cmd.Flags().GetBool("save-diff")
 
-		err = runFullSchemaCheck(mysqlDB, migrationsDir, tempDir, "mysql", "mysql", v, verbose, saveDiff)
+		err = runFullSchemaCheck(mysqlDB, migrationsDir, tempDir, v, baseLogger, verboseLogger, saveDiff)
 		if err != nil {
 			return fmt.Errorf("error during full schema check: %w", err)
 		}
-
 	}
 
 	// run MySQL schema checks
 	fixArtifacts, _ := cmd.Flags().GetBool("fix-artifacts")
 
-	err = runChecksForMySQL(mysqlDB, "artifacts", fixArtifacts)
+	err = runChecksForMySQL(mysqlDB, "artifacts", fixArtifacts, baseLogger, verboseLogger)
 	if err != nil {
 		return fmt.Errorf("error during running artifact checks for mysql: %w", err)
 	}
 
 	fixUnicode, _ := cmd.Flags().GetBool("fix-unicode")
 
-	err = runChecksForMySQL(mysqlDB, "unicode", fixUnicode)
+	err = runChecksForMySQL(mysqlDB, "unicode", fixUnicode, baseLogger, verboseLogger)
 	if err != nil {
 		return fmt.Errorf("error during running unicode checks for mysql: %w", err)
 	}
 
 	fixVarchar, _ := cmd.Flags().GetBool("fix-varchar")
 
-	err = runChecksForMySQL(mysqlDB, "varchar", fixVarchar)
+	err = runChecksForMySQL(mysqlDB, "varchar", fixVarchar, baseLogger, verboseLogger)
 	if err != nil {
 		return fmt.Errorf("error during running varchar checks for mysql: %w", err)
 	}
@@ -114,41 +115,61 @@ func runSourceCheckCmdF(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func runChecksForMySQL(db *store.DB, checkType string, fix bool) error {
+func runChecksForMySQL(db *store.DB, checkType string, fix bool, baseLogger, verboseLogger logger.LogInterface) error {
 	assets := queries.Assets()
 
-	artifacts, err := assets.ReadDir(checkType)
+	checkArtifacts, err := assets.ReadDir(filepath.Join("checks", checkType))
 	if err != nil {
 		return err
 	}
+	defer func() {
+		b, err := assets.ReadFile(filepath.Join("procedures", "drop_unicode_check.sql"))
+		if err != nil {
+			baseLogger.Printf("could not read embedded sql file: %s", err)
+		}
+		err = db.ExecQuery(context.TODO(), string(b))
+		if err != nil {
+			baseLogger.Printf("error during removing procedures: %s", err)
+		}
+	}()
+	b, err := assets.ReadFile(filepath.Join("procedures", "create_unicode_check.sql"))
+	if err != nil {
+		baseLogger.Printf("could not read embedded sql file: %s", err)
+	}
+	err = db.ExecQuery(context.TODO(), string(b))
+	if err != nil {
+		baseLogger.Printf("error during creating procedures: %s", err)
+	}
 
 	var fixRequired int
-	fmt.Printf("running checks for %s...\n", checkType)
-	for _, artifact := range artifacts {
+	baseLogger.Printf("running checks for %s...\n", checkType)
+	for _, artifact := range checkArtifacts {
 		if !strings.HasPrefix(artifact.Name(), "check") {
 			continue
 		}
 		name := stripQueryName(artifact.Name())
-		b, err := assets.ReadFile(filepath.Join(checkType, artifact.Name()))
+		b, err := assets.ReadFile(filepath.Join("checks", checkType, artifact.Name()))
 		if err != nil {
 			return fmt.Errorf("could not read embedded sql file: %w", err)
 		}
+		verboseLogger.Printf("checking %s...", name)
 		count, err := db.RunSelectCountQuery(context.TODO(), string(b))
 		if err != nil {
 			return fmt.Errorf("error during running checks: %w", err)
 		}
 
 		if count == 0 {
+			verboseLogger.Printf("%s is okay", name)
 			continue
 		}
 		fixRequired++
 
-		fmt.Printf("a fix is required for: %s\n", name)
+		baseLogger.Printf("a fix is required for: %s\n", name)
 		if !fix {
 			continue
 		}
 
-		fixQ, err := assets.ReadFile(filepath.Join(checkType, "fix_"+strings.TrimPrefix(artifact.Name(), "check_")))
+		fixQ, err := assets.ReadFile(filepath.Join("fixes", checkType, "fix_"+strings.TrimPrefix(artifact.Name(), "check_")))
 		if err != nil {
 			return fmt.Errorf("could not read embedded sql file: %w", err)
 		}
@@ -157,12 +178,12 @@ func runChecksForMySQL(db *store.DB, checkType string, fix bool) error {
 		if err != nil {
 			return fmt.Errorf("error while trying to fix %s error: %w", name, err)
 		}
-		fmt.Println("the fix query has been executed successfully.")
+		baseLogger.Println("the fix query has been executed successfully.")
 		fixRequired--
 	}
 
 	if fixRequired == 0 {
-		fmt.Printf("all good for %s\n", checkType)
+		baseLogger.Printf("all good for %s\n", checkType)
 	}
 
 	return nil
@@ -179,15 +200,16 @@ type CreateTable struct {
 	CreateTable string
 }
 
-func runFullSchemaCheck(db *store.DB, migrationsDir, tempDir, dbType, dir string, v semver.Version, verbose, saveDiff bool) error {
+func runFullSchemaCheck(db *store.DB, migrationsDir, tempDir string, v semver.Version, baseLogger, verboseLogger logger.LogInterface, saveDiff bool) error {
 	ctx := context.Background()
 
 	var mysqlContainer *module.MySQLContainer
 	var err error
-	fmt.Println("setting up a test MySQL instance...")
+
+	baseLogger.Println("setting up a test MySQL instance...")
 	mysqlContainer, err = module.RunContainer(ctx,
 		testcontainers.WithImage("mysql:8.0.36"),
-		testcontainers.WithLogger(logger.NewNopLogger()),
+		testcontainers.WithLogger(verboseLogger),
 		module.WithDatabase("foo"),
 		module.WithDefaultCredentials(),
 	)
@@ -195,7 +217,7 @@ func runFullSchemaCheck(db *store.DB, migrationsDir, tempDir, dbType, dir string
 		log.Fatalf("failed to start container: %s", err)
 	}
 	defer func() {
-		fmt.Println("terminating test container...")
+		verboseLogger.Println("terminating test container...")
 
 		if err := mysqlContainer.Terminate(ctx); err != nil {
 			log.Fatalf("failed to terminate container: %s", err)
@@ -207,13 +229,15 @@ func runFullSchemaCheck(db *store.DB, migrationsDir, tempDir, dbType, dir string
 		log.Fatalf("failed to get connection string of container: %s", err)
 	}
 
+	dir := "mysql"
 	if migrationsDir == "" {
+		baseLogger.Printf("cloning %s@%s\n", "repository", v.String())
 		err = git.CloneMigrations(git.CloneOptions{
 			TempRepoPath: tempDir,
 			Output:       dir,
-			DriverType:   dbType,
+			DriverType:   "mysql",
 			Version:      v,
-		}, verbose)
+		}, verboseLogger)
 		if err != nil {
 			return fmt.Errorf("error during cloning migrations: %w", err)
 		}
@@ -239,7 +263,7 @@ func runFullSchemaCheck(db *store.DB, migrationsDir, tempDir, dbType, dir string
 		return fmt.Errorf("could not read migrations: %w", err)
 	}
 
-	fmt.Println("running migrations...")
+	baseLogger.Println("running migrations...")
 	engine, err := morph.New(context.TODO(), driver, src, morph.WithLogger(logger.NewNopLogger()))
 	if err != nil {
 		return fmt.Errorf("could not initialize morph: %w", err)
@@ -249,7 +273,7 @@ func runFullSchemaCheck(db *store.DB, migrationsDir, tempDir, dbType, dir string
 	if err != nil {
 		return fmt.Errorf("could not apply migrations: %w", err)
 	}
-	fmt.Println("migrations applied.")
+	baseLogger.Println("migrations applied.")
 
 	testConn, err := testDB.GetDB().Conn(context.TODO())
 	if err != nil {
@@ -279,7 +303,8 @@ func runFullSchemaCheck(db *store.DB, migrationsDir, tempDir, dbType, dir string
 		return fmt.Errorf("could not grab connection from actual db: %w", err)
 	}
 
-	fmt.Println("comparing tables...")
+	baseLogger.Println("comparing tables...")
+	var diffTables int
 	for _, table := range tables {
 		row := testConn.QueryRowContext(context.TODO(), fmt.Sprintf("SHOW CREATE TABLE %s", table))
 		var expected CreateTable
@@ -296,13 +321,13 @@ func runFullSchemaCheck(db *store.DB, migrationsDir, tempDir, dbType, dir string
 
 		diff := git.Diff(actual.CreateTable, expected.CreateTable)
 		if diff != "" {
-			time.Sleep(500 * time.Millisecond)
+			diffTables++
 
 			if !saveDiff {
-				fmt.Printf("%s table is not as expected. Diff:\n%s\n", table, diff)
+				baseLogger.Printf("%s table is not as expected. Diff:\n%s\n", table, diff)
 				continue
 			}
-			fmt.Printf("%s table differs from what is expected.\n", table)
+			verboseLogger.Printf("%s table differs from what is expected.\n", table)
 
 			_ = os.RemoveAll("diffs")
 			err = os.MkdirAll("diffs", 0750)
@@ -315,6 +340,9 @@ func runFullSchemaCheck(db *store.DB, migrationsDir, tempDir, dbType, dir string
 				return fmt.Errorf("could not create diff directory: %w", err)
 			}
 		}
+	}
+	if diffTables == 0 {
+		verboseLogger.Printf("MySQL tables are equal from what is expected.\n")
 	}
 
 	return nil
