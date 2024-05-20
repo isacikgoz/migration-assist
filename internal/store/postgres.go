@@ -20,7 +20,7 @@ func openPostgres(dataSource string) (*DB, error) {
 
 	conn, err := db.Conn(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("failed to grab connection to the database")
+		return nil, fmt.Errorf("failed to grab connection to the database: %w", err)
 	}
 
 	return &DB{
