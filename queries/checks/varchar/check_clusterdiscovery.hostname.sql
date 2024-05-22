@@ -1,1 +1,1 @@
-SELECT COUNT(*) FROM ClusterDiscovery WHERE LENGTH(HostName) > 512;
+CALL CountIfExists('ClusterDiscovery', 'HostName', 512);

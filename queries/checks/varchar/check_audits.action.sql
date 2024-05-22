@@ -1,1 +1,1 @@
-SELECT COUNT(*) FROM Audits WHERE LENGTH(Action) > 512;
+CALL CountIfExists('Audits', 'Action', 512);

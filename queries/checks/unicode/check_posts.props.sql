@@ -1,1 +1,1 @@
-CALL ChekUnsupportedUnicode('Posts', 'Props');
+CALL CheckUnsupportedUnicode('Posts', 'Props');

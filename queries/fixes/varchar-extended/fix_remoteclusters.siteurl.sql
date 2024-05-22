@@ -1,0 +1,1 @@
+DELETE FROM RemoteClusters WHERE LENGTH(SiteURL) > 512;

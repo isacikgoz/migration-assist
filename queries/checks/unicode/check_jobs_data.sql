@@ -1,1 +1,1 @@
-CALL ChekUnsupportedUnicode('Jobs', 'Data');
+CALL CheckUnsupportedUnicode('Jobs', 'Data');

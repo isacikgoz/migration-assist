@@ -1,1 +1,1 @@
-CALL ChekUnsupportedUnicode('Users', 'Timezone');
+CALL CheckUnsupportedUnicode('Users', 'Timezone');

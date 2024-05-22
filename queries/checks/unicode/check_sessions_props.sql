@@ -1,1 +1,1 @@
-CALL ChekUnsupportedUnicode('Sessions', 'Props');
+CALL CheckUnsupportedUnicode('Sessions', 'Props');

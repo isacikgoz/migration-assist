@@ -1,1 +1,1 @@
-DROP PROCEDURE IF EXISTS ChekUnsupportedUnicode;
+DROP PROCEDURE IF EXISTS CheckUnsupportedUnicode;

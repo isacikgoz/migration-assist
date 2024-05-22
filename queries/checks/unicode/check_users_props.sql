@@ -1,1 +1,1 @@
-CALL ChekUnsupportedUnicode('Users', 'Props');
+CALL CheckUnsupportedUnicode('Users', 'Props');

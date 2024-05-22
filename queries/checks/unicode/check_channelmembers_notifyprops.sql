@@ -1,1 +1,1 @@
-CALL ChekUnsupportedUnicode('ChannelMembers', 'NotifyProps');
+CALL CheckUnsupportedUnicode('ChannelMembers', 'NotifyProps');

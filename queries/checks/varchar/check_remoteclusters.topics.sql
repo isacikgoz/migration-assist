@@ -1,1 +1,1 @@
-SELECT COUNT(*) FROM RemoteClusters WHERE LENGTH(Topics) > 512;
+CALL CountIfExists('RemoteClusters', 'Topics', 512);

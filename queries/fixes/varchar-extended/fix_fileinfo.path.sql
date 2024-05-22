@@ -1,0 +1,1 @@
+DELETE FROM FileInfo WHERE LENGTH(Path) > 512;

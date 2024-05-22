@@ -1,1 +1,1 @@
-SELECT COUNT(*) FROM Commands WHERE LENGTH(AutoCompleteHint) > 1024;
+CALL CountIfExists('Commands', 'AutoCompleteHint', 1024);

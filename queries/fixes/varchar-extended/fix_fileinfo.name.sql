@@ -1,0 +1,1 @@
+DELETE FROM FileInfo WHERE LENGTH(Name) > 256;

@@ -1,1 +1,1 @@
-SELECT COUNT(*) FROM Audits WHERE LENGTH(ExtraInfo) > 1024;
+CALL CountIfExists('Audits', 'ExtraInfo', 1024);

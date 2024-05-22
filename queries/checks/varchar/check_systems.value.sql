@@ -1,1 +1,1 @@
-SELECT COUNT(*) FROM Systems WHERE LENGTH(Value) > 1024;
+CALL CountIfExists('Systems', 'Value', 1024);

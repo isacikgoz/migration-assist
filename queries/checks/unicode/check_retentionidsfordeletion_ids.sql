@@ -1,1 +1,1 @@
-CALL ChekUnsupportedUnicode('RetentionIdsForDeletion', 'Ids');
+CALL CheckUnsupportedUnicode('RetentionIdsForDeletion', 'Ids');

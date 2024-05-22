@@ -1,1 +1,1 @@
-SELECT COUNT(*) FROM Commands WHERE LENGTH(IconURL) > 1024;
+CALL CountIfExists('Commands', 'IconURL', 1024);

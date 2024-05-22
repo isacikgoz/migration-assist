@@ -1,0 +1,1 @@
+DELETE FROM Compliances WHERE LENGTH(Emails) > 1024;

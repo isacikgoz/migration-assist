@@ -1,1 +1,1 @@
-CALL ChekUnsupportedUnicode('RecentSearches', 'Query');
+CALL CheckUnsupportedUnicode('RecentSearches', 'Query');

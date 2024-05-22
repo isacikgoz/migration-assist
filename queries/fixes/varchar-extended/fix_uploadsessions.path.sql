@@ -1,0 +1,1 @@
+DELETE FROM UploadSessions WHERE LENGTH(Path) > 512;

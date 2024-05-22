@@ -1,0 +1,1 @@
+DELETE FROM Sessions WHERE LENGTH(DeviceId) > 512;

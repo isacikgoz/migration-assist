@@ -90,6 +90,13 @@ func runSourceCheckCmdF(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// create procedures
+	cleanUpFn, err := createProcedures(mysqlDB, baseLogger)
+	if err != nil {
+		return fmt.Errorf("error during creating procedures for mysql: %w", err)
+	}
+	defer cleanUpFn()
+
 	// run MySQL schema checks
 	fixArtifacts, _ := cmd.Flags().GetBool("fix-artifacts")
 
@@ -112,38 +119,66 @@ func runSourceCheckCmdF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error during running varchar checks for mysql: %w", err)
 	}
 
+	err = runChecksForMySQL(mysqlDB, "varchar-extended", fixVarchar, baseLogger, verboseLogger)
+	if err != nil {
+		return fmt.Errorf("error during running varchar checks for mysql: %w", err)
+	}
+
 	return nil
 }
 
-func runChecksForMySQL(db *store.DB, checkType string, fix bool, baseLogger, verboseLogger logger.LogInterface) error {
+func createProcedures(db *store.DB, baseLogger logger.LogInterface) (func(), error) {
 	assets := queries.Assets()
 
-	checkArtifacts, err := assets.ReadDir(filepath.Join("checks", checkType))
+	procedures, err := assets.ReadDir("procedures")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer func() {
-		b, err := assets.ReadFile(filepath.Join("procedures", "drop_unicode_check.sql"))
+
+	for _, procedure := range procedures {
+		if !strings.HasPrefix(procedure.Name(), "create") {
+			continue
+		}
+		b, err := assets.ReadFile(filepath.Join("procedures", procedure.Name()))
 		if err != nil {
 			baseLogger.Printf("could not read embedded sql file: %s", err)
 		}
 		err = db.ExecQuery(context.TODO(), string(b))
 		if err != nil {
-			baseLogger.Printf("error during removing procedures: %s", err)
+			baseLogger.Printf("error during creating procedures: %s", err)
 		}
-	}()
-	b, err := assets.ReadFile(filepath.Join("procedures", "create_unicode_check.sql"))
-	if err != nil {
-		baseLogger.Printf("could not read embedded sql file: %s", err)
-	}
-	err = db.ExecQuery(context.TODO(), string(b))
-	if err != nil {
-		baseLogger.Printf("error during creating procedures: %s", err)
 	}
 
-	var fixRequired int
+	cleanUpFn := func() {
+		for _, procedure := range procedures {
+			if !strings.HasPrefix(procedure.Name(), "drop") {
+				continue
+			}
+			b, err := assets.ReadFile(filepath.Join("procedures", procedure.Name()))
+			if err != nil {
+				baseLogger.Printf("could not read embedded sql file: %s", err)
+			}
+			err = db.ExecQuery(context.TODO(), string(b))
+			if err != nil {
+				baseLogger.Printf("error during dropping procedures: %s", err)
+			}
+		}
+	}
+
+	return cleanUpFn, nil
+}
+
+func runChecksForMySQL(db *store.DB, checkType string, fix bool, baseLogger, verboseLogger logger.LogInterface) error {
+	assets := queries.Assets()
+
+	checks, err := assets.ReadDir(filepath.Join("checks", checkType))
+	if err != nil {
+		return err
+	}
+
+	var fixRequired, totalCheck int
 	baseLogger.Printf("running checks for %s...\n", checkType)
-	for _, artifact := range checkArtifacts {
+	for _, artifact := range checks {
 		if !strings.HasPrefix(artifact.Name(), "check") {
 			continue
 		}
@@ -157,7 +192,7 @@ func runChecksForMySQL(db *store.DB, checkType string, fix bool, baseLogger, ver
 		if err != nil {
 			return fmt.Errorf("error during running checks: %w", err)
 		}
-
+		totalCheck++
 		if count == 0 {
 			verboseLogger.Printf("%s is okay", name)
 			continue
@@ -183,7 +218,9 @@ func runChecksForMySQL(db *store.DB, checkType string, fix bool, baseLogger, ver
 	}
 
 	if fixRequired == 0 {
-		baseLogger.Printf("all good for %s\n", checkType)
+		baseLogger.Printf("%d checks been made, all good for %s\n", totalCheck, checkType)
+	} else {
+		baseLogger.Printf("%d checks been made, %d fix(es) is required for %s\n", totalCheck, fixRequired, checkType)
 	}
 
 	return nil
@@ -208,6 +245,7 @@ func runFullSchemaCheck(db *store.DB, migrationsDir, tempDir string, v semver.Ve
 
 	baseLogger.Println("setting up a test MySQL instance...")
 	mysqlContainer, err = module.RunContainer(ctx,
+		// TODO: get version from user database
 		testcontainers.WithImage("mysql:8.0.36"),
 		testcontainers.WithLogger(verboseLogger),
 		module.WithDatabase("foo"),

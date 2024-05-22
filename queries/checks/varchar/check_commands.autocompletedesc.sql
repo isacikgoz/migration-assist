@@ -1,1 +1,1 @@
-SELECT COUNT(*) FROM Commands WHERE LENGTH(AutoCompleteDesc) > 1024;
+CALL CountIfExists('Commands', 'AutoCompleteDesc', 1024);

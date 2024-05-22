@@ -1,1 +1,1 @@
-CALL ChekUnsupportedUnicode('Threads', 'Participants');
+CALL CheckUnsupportedUnicode('Threads', 'Participants');
