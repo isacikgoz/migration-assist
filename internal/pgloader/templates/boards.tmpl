@@ -1,0 +1,41 @@
+LOAD DATABASE
+    FROM       mysql://{{ .MySQLUser }}:{{ .MySQLPassword }}@{{ .MySQLAddress }}/{{ .SourceSchema }}
+    INTO       pgsql://{{ .PGUser }}:{{ .PGPassword }}@{{ .PGAddress }}/{{ .TargetSchema }}
+
+WITH include drop, create tables, create indexes, reset sequences,
+    workers = 8, concurrency = 1,
+    multiple readers per thread, rows per range = 50000,
+    preserve index names
+
+SET PostgreSQL PARAMETERS
+    maintenance_work_mem to '128MB',
+    work_mem to '12MB'
+
+SET MySQL PARAMETERS
+    net_read_timeout  = '120',
+    net_write_timeout = '120'
+
+CAST column focalboard_blocks.fields to "json" drop typemod,
+     column focalboard_blocks_history.fields to "json" drop typemod,
+     column focalboard_schema_migrations.name to "varchar" drop typemod,
+     column focalboard_sessions.props to "json" drop typemod,
+     column focalboard_teams.settings to "json" drop typemod,
+     column focalboard_users.props to "json" drop typemod,
+     type int when (= precision 11) to int4 drop typemod,
+     type json to jsonb drop typemod
+
+INCLUDING ONLY TABLE NAMES MATCHING
+    ~/focalboard/
+
+BEFORE LOAD DO
+    $$ ALTER SCHEMA public RENAME TO {{ .SourceSchema }}; $$
+
+AFTER LOAD DO
+    $$ UPDATE {{ .SourceSchema }}.focalboard_blocks SET "fields" = '{}'::json WHERE "fields"::text = ''; $$,
+    $$ UPDATE {{ .SourceSchema }}.focalboard_blocks_history SET "fields" = '{}'::json WHERE "fields"::text = ''; $$,
+    $$ UPDATE {{ .SourceSchema }}.focalboard_sessions SET "props" = '{}'::json WHERE "props"::text = ''; $$,
+    $$ UPDATE {{ .SourceSchema }}.focalboard_teams SET "settings" = '{}'::json WHERE "settings"::text = ''; $$,
+    $$ UPDATE {{ .SourceSchema }}.focalboard_users SET "props" = '{}'::json WHERE "props"::text = ''; $$,
+    $$ ALTER SCHEMA {{ .SourceSchema }} RENAME TO public; $$,
+    $$ SELECT pg_catalog.set_config('search_path', '"$user", public', false); $$,
+    $$ ALTER USER {{ .PGUser }} SET SEARCH_PATH TO 'public'; $$;

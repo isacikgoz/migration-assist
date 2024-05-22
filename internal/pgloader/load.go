@@ -33,8 +33,17 @@ type PgLoaderConfig struct {
 	DropFullTextIndexes bool
 }
 
-func GenerateConfigurationFile(output string, config PgLoaderConfig) error {
-	bytes, err := assets.ReadFile("templates/config.tmpl")
+func GenerateConfigurationFile(output, product string, config PgLoaderConfig) error {
+	var f string
+	switch product {
+	case "boards":
+		f = "boards"
+	case "playbooks":
+		f = "playbooks"
+	default:
+		f = "config"
+	}
+	bytes, err := assets.ReadFile(fmt.Sprintf("templates/%s.tmpl", f))
 	if err != nil {
 		return fmt.Errorf("could not read configuration template: %w", err)
 	}
