@@ -17,7 +17,7 @@ SET MySQL PARAMETERS
 
 CAST column IR_ChannelAction.ActionType to text drop typemod,
      column IR_ChannelAction.TriggerType to text drop typemod,
-     column IR_Incident.ChecklistsJSON to "json" drop typemod
+     column IR_Incident.ChecklistsJSON to "json" drop typemod{{if .RemoveNullCharacters}} using remove-null-characters{{end}}
 
 INCLUDING ONLY TABLE NAMES MATCHING
     ~/IR_/

@@ -18,11 +18,11 @@ SET MySQL PARAMETERS
 CAST column focalboard_blocks.fields to "json" drop typemod,
      column focalboard_blocks_history.fields to "json" drop typemod,
      column focalboard_schema_migrations.name to "varchar" drop typemod,
-     column focalboard_sessions.props to "json" drop typemod,
-     column focalboard_teams.settings to "json" drop typemod,
-     column focalboard_users.props to "json" drop typemod,
+     column focalboard_sessions.props to "json" drop typemod{{if .RemoveNullCharacters}} using remove-null-characters{{end}},
+     column focalboard_teams.settings to "json" drop typemod{{if .RemoveNullCharacters}} using remove-null-characters{{end}},
+     column focalboard_users.props to "json" drop typemod{{if .RemoveNullCharacters}} using remove-null-characters{{end}},
      type int when (= precision 11) to int4 drop typemod,
-     type json to jsonb drop typemod
+     type json to jsonb drop typemod{{if .RemoveNullCharacters}} using remove-null-characters{{end}}
 
 INCLUDING ONLY TABLE NAMES MATCHING
     ~/focalboard/

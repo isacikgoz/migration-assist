@@ -24,9 +24,9 @@ SET MySQL PARAMETERS
     column Drafts.Priority to text,
     type int when (= precision 11) to integer drop typemod,
     type bigint when (= precision 20) to bigint drop typemod,
-    type text to varchar drop typemod,
+    type text to varchar drop typemod{{if .RemoveNullCharacters}} using remove-null-characters{{end}},
     type tinyint when (<= precision 4) to boolean using tinyint-to-boolean,
-    type json to jsonb drop typemod
+    type json to jsonb drop typemod{{if .RemoveNullCharacters}} using remove-null-characters{{end}}
 
 EXCLUDING TABLE NAMES MATCHING ~<IR_>, ~<focalboard>, 'schema_migrations', 'db_migrations', 'db_lock',
     'configurations', 'configurationfiles', 'db_config_migrations'

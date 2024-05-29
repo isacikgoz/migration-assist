@@ -26,6 +26,7 @@ func GeneratePgloaderConfigCmd() *cobra.Command {
 
 	// Optional flags
 	cmd.PersistentFlags().String("output", "", "The filename of the generated configuration")
+	cmd.PersistentFlags().Bool("remove-null-chars", false, "Adds transformations to remove null characters on the fly")
 	return cmd
 }
 
@@ -57,10 +58,12 @@ func genPgloaderCmdFn(product string) func(cmd *cobra.Command, _ []string) error
 		postgresDSN, _ := cmd.Flags().GetString("postgres")
 
 		output, _ := cmd.Flags().GetString("output")
+		removeNull, _ := cmd.Flags().GetBool("remove-null-chars")
 
 		err := pgloader.GenerateConfigurationFile(output, product, pgloader.PgLoaderConfig{
-			MySQLDSN:    mysqlDSN,
-			PostgresDSN: postgresDSN,
+			MySQLDSN:             mysqlDSN,
+			PostgresDSN:          postgresDSN,
+			RemoveNullCharacters: removeNull,
 		})
 		if err != nil {
 			return fmt.Errorf("could not generate config: %w", err)

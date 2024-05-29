@@ -23,14 +23,14 @@ type paramters struct {
 	PGAddress    string
 	TargetSchema string
 
-	DropFTIndexes bool
+	RemoveNullCharacters bool
 }
 
 type PgLoaderConfig struct {
 	MySQLDSN    string
 	PostgresDSN string
 
-	DropFullTextIndexes bool
+	RemoveNullCharacters bool
 }
 
 func GenerateConfigurationFile(output, product string, config PgLoaderConfig) error {
@@ -54,7 +54,7 @@ func GenerateConfigurationFile(output, product string, config PgLoaderConfig) er
 	}
 
 	params := paramters{
-		DropFTIndexes: config.DropFullTextIndexes,
+		RemoveNullCharacters: config.RemoveNullCharacters,
 	}
 	err = parseMySQL(&params, config.MySQLDSN)
 	if err != nil {
