@@ -7,6 +7,9 @@ import (
 	"os"
 	"regexp"
 	"text/template"
+
+	"github.com/isacikgoz/migration-assist/internal/logger"
+	"github.com/isacikgoz/migration-assist/internal/store"
 )
 
 //go:embed templates
@@ -24,6 +27,7 @@ type paramters struct {
 	TargetSchema string
 
 	RemoveNullCharacters bool
+	SearchPath           string
 }
 
 type PgLoaderConfig struct {
@@ -33,7 +37,7 @@ type PgLoaderConfig struct {
 	RemoveNullCharacters bool
 }
 
-func GenerateConfigurationFile(output, product string, config PgLoaderConfig) error {
+func GenerateConfigurationFile(output, product string, config PgLoaderConfig, baseLogger logger.LogInterface) error {
 	var f string
 	switch product {
 	case "boards":
@@ -64,6 +68,28 @@ func GenerateConfigurationFile(output, product string, config PgLoaderConfig) er
 	err = parsePostgres(&params, config.PostgresDSN)
 	if err != nil {
 		return fmt.Errorf("could not parse postgres DSN: %w", err)
+	}
+
+	postgresDB, err := store.NewStore("postgres", config.PostgresDSN)
+	if err != nil {
+		return err
+	}
+	defer postgresDB.Close()
+
+	baseLogger.Println("pinging postgres...")
+	err = postgresDB.Ping()
+	if err != nil {
+		return fmt.Errorf("could not ping postgres: %w", err)
+	}
+	baseLogger.Println("connected to postgres successfully.")
+
+	row := postgresDB.GetDB().QueryRow("SHOW SEARCH_PATH")
+	if row.Err() != nil {
+		return fmt.Errorf("could not query search path: %w", err)
+	}
+	err = row.Scan(&params.SearchPath)
+	if err != nil {
+		return fmt.Errorf("could not query scan search path: %w", err)
 	}
 
 	var writer io.Writer

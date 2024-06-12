@@ -87,5 +87,5 @@ AFTER LOAD DO
     $$ CREATE INDEX IF NOT EXISTS ir_statusposts_incidentid_postid_key on {{ .SourceSchema }}.IR_StatusPosts(IncidentId,PostId); $$,
     $$ CREATE INDEX IF NOT EXISTS ir_playbookmember_playbookid on {{ .SourceSchema }}.IR_PlaybookMember(PlaybookId); $$,
     $$ ALTER SCHEMA {{ .SourceSchema }} RENAME TO public; $$,
-    $$ SELECT pg_catalog.set_config('search_path', '"$user", public', false); $$,
-    $$ ALTER USER {{ .PGUser }} SET SEARCH_PATH TO 'public'; $$;
+    $$ SELECT pg_catalog.set_config('search_path', '"$user", {{ .SearchPath }}', false); $$,
+    $$ ALTER USER {{ .PGUser }} SET SEARCH_PATH TO '{{ .SearchPath }}'; $$;

@@ -2,7 +2,9 @@ package commands
 
 import (
 	"fmt"
+	"os"
 
+	"github.com/isacikgoz/migration-assist/internal/logger"
 	"github.com/isacikgoz/migration-assist/internal/pgloader"
 	"github.com/spf13/cobra"
 )
@@ -60,11 +62,13 @@ func genPgloaderCmdFn(product string) func(cmd *cobra.Command, _ []string) error
 		output, _ := cmd.Flags().GetString("output")
 		removeNull, _ := cmd.Flags().GetBool("remove-null-chars")
 
+			baseLogger := logger.NewLogger(os.Stderr, logger.Options{Timestamps: true})
+
 		err := pgloader.GenerateConfigurationFile(output, product, pgloader.PgLoaderConfig{
 			MySQLDSN:             mysqlDSN,
 			PostgresDSN:          postgresDSN,
 			RemoveNullCharacters: removeNull,
-		})
+		}, baseLogger)
 		if err != nil {
 			return fmt.Errorf("could not generate config: %w", err)
 		}
