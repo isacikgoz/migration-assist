@@ -1,13 +1,8 @@
 on: [push]
-name: Build
+name: Lint
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      GOPATH: ${{ github.workspace }}
-    defaults:
-      run:
-        working-directory: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
     steps:
       - name: Install Go
         uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
@@ -15,7 +10,9 @@ jobs:
           go-version: 1.22
       - name: Checkout Code
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-        with:
-          path: ${{ env.GOPATH }}/src/github.com/${{ github.repository }}
-      - name: Build the CLI tool
+      - name: Build the CLI tool # it is useful to build first as linter produces irrelevant errors if the build is failing
         run: go build ./cmd/migration-assist/
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # v6.0.1
+        with:
+          version: v1.58

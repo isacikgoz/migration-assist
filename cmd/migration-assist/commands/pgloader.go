@@ -61,9 +61,7 @@ func genPgloaderCmdFn(product string) func(cmd *cobra.Command, _ []string) error
 
 		output, _ := cmd.Flags().GetString("output")
 		removeNull, _ := cmd.Flags().GetBool("remove-null-chars")
-
-			baseLogger := logger.NewLogger(os.Stderr, logger.Options{Timestamps: true})
-
+		baseLogger := logger.NewLogger(os.Stderr, logger.Options{Timestamps: true})
 		err := pgloader.GenerateConfigurationFile(output, product, pgloader.PgLoaderConfig{
 			MySQLDSN:             mysqlDSN,
 			PostgresDSN:          postgresDSN,

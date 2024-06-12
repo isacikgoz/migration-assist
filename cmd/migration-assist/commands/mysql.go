@@ -71,14 +71,14 @@ func runSourceCheckCmdF(cmd *cobra.Command, args []string) error {
 	fullSchema, _ := cmd.Flags().GetBool("full-schema-check")
 	if fullSchema {
 		mmVersion, _ := cmd.Flags().GetString("mattermost-version")
-		v, err := semver.ParseTolerant(mmVersion)
-		if err != nil {
-			return fmt.Errorf("could not parse version: %w", err)
+		v, err2 := semver.ParseTolerant(mmVersion)
+		if err2 != nil {
+			return fmt.Errorf("could not parse version: %w", err2)
 		}
 
-		tempDir, err := os.MkdirTemp("", "mattermost")
-		if err != nil {
-			return fmt.Errorf("could not create temp directory: %w", err)
+		tempDir, err3 := os.MkdirTemp("", "mattermost")
+		if err3 != nil {
+			return fmt.Errorf("could not create temp directory: %w", err3)
 		}
 
 		migrationsDir, _ := cmd.Flags().GetString("migrations-dir")
@@ -257,8 +257,8 @@ func runFullSchemaCheck(db *store.DB, migrationsDir, tempDir string, v semver.Ve
 	defer func() {
 		verboseLogger.Println("terminating test container...")
 
-		if err := mysqlContainer.Terminate(ctx); err != nil {
-			log.Fatalf("failed to terminate container: %s", err)
+		if err2 := mysqlContainer.Terminate(ctx); err2 != nil {
+			log.Fatalf("failed to terminate container: %s", err2)
 		}
 	}()
 
@@ -326,8 +326,8 @@ func runFullSchemaCheck(db *store.DB, migrationsDir, tempDir string, v semver.Ve
 
 	for rows.Next() {
 		var table string
-		if err := rows.Scan(&table); err != nil {
-			return fmt.Errorf("error while scanning tables from test db: %w", err)
+		if err2 := rows.Scan(&table); err2 != nil {
+			return fmt.Errorf("error while scanning tables from test db: %w", err2)
 		}
 		tables = append(tables, table)
 	}

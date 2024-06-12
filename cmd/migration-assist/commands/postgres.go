@@ -82,14 +82,14 @@ func runTargetCheckCmdF(cmd *cobra.Command, args []string) error {
 	migrationDir, _ := cmd.Flags().GetString("migration-dir")
 	if migrationDir == "" {
 		mmVersion, _ := cmd.Flags().GetString("mattermost-version")
-		v, err := semver.ParseTolerant(mmVersion)
-		if err != nil {
-			return fmt.Errorf("could not parse version: %w", err)
+		v, err2 := semver.ParseTolerant(mmVersion)
+		if err2 != nil {
+			return fmt.Errorf("could not parse version: %w", err2)
 		}
 
-		tempDir, err := os.MkdirTemp("", "mattermost")
-		if err != nil {
-			return fmt.Errorf("could not create temp directory: %w", err)
+		tempDir, err3 := os.MkdirTemp("", "mattermost")
+		if err3 != nil {
+			return fmt.Errorf("could not create temp directory: %w", err3)
 		}
 
 		baseLogger.Printf("cloning %s@%s\n", "repository", v.String())
@@ -164,5 +164,4 @@ func runPostMigrateCmdF(_ *cobra.Command, args []string) error {
 
 	baseLogger.Println("indexes created.")
 	return nil
-
 }

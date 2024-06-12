@@ -1,0 +1,38 @@
+run:
+  timeout: 10m
+
+linters-settings:
+  gofmt:
+    simplify: true
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+
+linters:
+  disable-all: true
+  enable:
+    - typecheck # This is to improve error reporting
+    - gofmt
+    - gosimple
+    - govet
+    - ineffassign
+    - revive
+    - exportloopref
+    - staticcheck
+    - unconvert
+    - unused
+    - misspell
+    - goimports
+    - makezero
+    - whitespace
+    - errcheck
+
+issues:
+  exclude-rules:
+    - linters:
+        - revive
+      text: "var-naming|error-naming|exported|increment-decrement|error-strings|if-return|unused-parameter|blank-imports|empty-block"
+    - linters:
+        - staticcheck
+      text: SA1019

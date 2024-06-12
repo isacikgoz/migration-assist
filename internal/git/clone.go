@@ -64,10 +64,10 @@ func CloneMigrations(opts CloneOptions, baseLogger logger.LogInterface) error {
 		return fmt.Errorf("error during checkout: %w", err)
 	}
 
-	if _, err := os.Stat(opts.Output); err == nil || os.IsExist(err) {
+	if _, err2 := os.Stat(opts.Output); err2 == nil || os.IsExist(err2) {
 		baseLogger.Println("removing existing migrations...")
-		err = os.RemoveAll(opts.Output)
-		if err != nil {
+		err2 = os.RemoveAll(opts.Output)
+		if err2 != nil {
 			return fmt.Errorf("error clearing output directory: %w", err)
 		}
 	}
