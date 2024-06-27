@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/blang/semver/v4"
 	"github.com/isacikgoz/migration-assist/internal/git"
@@ -26,7 +27,9 @@ func TargetCheckCmd() *cobra.Command {
 		Args:    cobra.MinimumNArgs(1),
 	}
 
-	cmd.AddCommand(RunAfterMigration())
+	amCmd := RunAfterMigration()
+	amCmd.Flags().String("schema", "public", "the default schema to be used for the session")
+	cmd.AddCommand(amCmd)
 
 	// Optional flags
 	cmd.Flags().Bool("run-migrations", false, "Runs migrations for Postgres schema")
@@ -132,14 +135,41 @@ func runTargetCheckCmdF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runPostMigrateCmdF(_ *cobra.Command, args []string) error {
+func runPostMigrateCmdF(c *cobra.Command, args []string) error {
 	baseLogger := logger.NewLogger(os.Stderr, logger.Options{Timestamps: true})
+	schema, _ := c.Flags().GetString("schema")
 
 	postgresDB, err := store.NewStore("postgres", args[0])
 	if err != nil {
 		return err
 	}
 	defer postgresDB.Close()
+
+	rows, err := postgresDB.GetDB().QueryContext(c.Context(), "SHOW search_path")
+	if err != nil {
+		return fmt.Errorf("could not determine the search_path: %w", err)
+	}
+	defer rows.Close()
+
+	var schemas []string
+	for rows.Next() {
+		var s string
+		err = rows.Scan(&s)
+		if err != nil {
+			return fmt.Errorf("could not scan the schema for search_path: %w", err)
+		}
+		schemas = append(schemas, s)
+	}
+	if len(schemas) == 0 {
+		return fmt.Errorf("no value available for search_path")
+	} else if _, ok := slices.BinarySearch(schemas, schema); !ok {
+		baseLogger.Printf("could not find the default schema %q in search_path, consider setting it from the postgresql console\n", schema)
+		err = postgresDB.ExecQuery(c.Context(), fmt.Sprintf("SELECT pg_catalog.set_config('search_path', '\"$user\", %s', false)", schema))
+		if err != nil {
+			return fmt.Errorf("could not set search_path for the session: %w", err)
+		}
+		baseLogger.Printf("search_path is set to %q for the currrent session\n", schema)
+	}
 
 	assets := queries.Assets()
 	queries, err := assets.ReadDir("post-migrate")
