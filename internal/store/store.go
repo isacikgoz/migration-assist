@@ -3,8 +3,18 @@ package store
 import (
 	"context"
 	"database/sql"
+	"embed"
 	"fmt"
+	"path/filepath"
 	"time"
+
+	"github.com/mattermost/morph"
+	"github.com/mattermost/morph/drivers"
+	"github.com/mattermost/morph/drivers/mysql"
+	"github.com/mattermost/morph/drivers/postgres"
+	"github.com/mattermost/morph/sources/file"
+
+	"github.com/isacikgoz/migration-assist/internal/logger"
 )
 
 const (
@@ -12,6 +22,7 @@ const (
 )
 
 type DB struct {
+	dbType       string
 	databaseName string
 	db           *sql.DB
 	conn         *sql.Conn
@@ -66,4 +77,64 @@ func (db *DB) ExecQuery(ctx context.Context, query string) error {
 	_, err := db.conn.ExecContext(ctx, query)
 
 	return err
+}
+
+// RunMigrations will run all of the migrations within a directory,
+func (db *DB) RunEmbeddedMigrations(assets embed.FS, dir string, logger logger.LogInterface) error {
+	queries, err := assets.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, query := range queries {
+		b, err := assets.ReadFile(filepath.Join("post-migrate", query.Name()))
+		if err != nil {
+			return fmt.Errorf("could not read embedded sql file: %w", err)
+		}
+
+		logger.Printf("applying %s\n", query.Name())
+		err = db.ExecQuery(context.TODO(), string(b))
+		if err != nil {
+			return fmt.Errorf("error during running post-migrate queries: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// RunMigrations will run the migrations form a given directory with morph
+func (db *DB) RunMigrations(dir string) error {
+	var driver drivers.Driver
+	var err error
+	switch db.dbType {
+	case "mysql":
+		driver, err = mysql.WithInstance(db.db)
+		if err != nil {
+			return fmt.Errorf("could not initialize driver: %w", err)
+		}
+	case "postgres":
+		driver, err = postgres.WithInstance(db.db)
+		if err != nil {
+			return fmt.Errorf("could not initialize driver: %w", err)
+		}
+	default:
+		return fmt.Errorf("unsupported db type: %s", db.dbType)
+	}
+
+	src, err := file.Open(dir)
+	if err != nil {
+		return fmt.Errorf("could not read migrations: %w", err)
+	}
+
+	engine, err := morph.New(context.TODO(), driver, src, morph.WithLogger(logger.NewNopLogger()))
+	if err != nil {
+		return fmt.Errorf("could not initialize morph: %w", err)
+	}
+
+	err = engine.ApplyAll()
+	if err != nil {
+		return fmt.Errorf("could not apply migrations: %w", err)
+	}
+
+	return nil
 }

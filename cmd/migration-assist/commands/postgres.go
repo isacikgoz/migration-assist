@@ -1,20 +1,14 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"path/filepath"
-	"slices"
 
 	"github.com/blang/semver/v4"
 	"github.com/isacikgoz/migration-assist/internal/git"
 	"github.com/isacikgoz/migration-assist/internal/logger"
 	"github.com/isacikgoz/migration-assist/internal/store"
 	"github.com/isacikgoz/migration-assist/queries"
-	"github.com/mattermost/morph"
-	"github.com/mattermost/morph/drivers/postgres"
-	"github.com/mattermost/morph/sources/file"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +22,6 @@ func TargetCheckCmd() *cobra.Command {
 	}
 
 	amCmd := RunAfterMigration()
-	amCmd.Flags().String("schema", "public", "the default schema to be used for the session")
 	cmd.AddCommand(amCmd)
 
 	// Optional flags
@@ -36,6 +29,7 @@ func TargetCheckCmd() *cobra.Command {
 	cmd.Flags().String("mattermost-version", "v8.1", "Mattermost version to be cloned to run migrations")
 	cmd.Flags().String("migrations-dir", "", "Migrations directory (should be used if mattermost-version is not supplied)")
 	cmd.Flags().String("git", "git", "git binary to be executed if the repository will be cloned")
+	cmd.PersistentFlags().String("schema", "public", "the default schema to be used for the session")
 
 	return cmd
 }
@@ -110,26 +104,13 @@ func runTargetCheckCmdF(cmd *cobra.Command, args []string) error {
 	}
 
 	// run the migrations
-	driver, err := postgres.WithInstance(postgresDB.GetDB())
-	if err != nil {
-		return fmt.Errorf("could not initialize driver: %w", err)
-	}
-
-	src, err := file.Open(migrationDir)
-	if err != nil {
-		return fmt.Errorf("could not read migrations: %w", err)
-	}
-
 	baseLogger.Println("running migrations..")
-	engine, err := morph.New(context.TODO(), driver, src, morph.WithLogger(logger.NewNopLogger()))
+
+	err = postgresDB.RunMigrations(migrationDir)
 	if err != nil {
-		return fmt.Errorf("could not initialize morph: %w", err)
+		return fmt.Errorf("could not run migrations: %w", err)
 	}
 
-	err = engine.ApplyAll()
-	if err != nil {
-		return fmt.Errorf("could not apply migrations: %w", err)
-	}
 	baseLogger.Println("migrations applied.")
 
 	return nil
@@ -145,53 +126,19 @@ func runPostMigrateCmdF(c *cobra.Command, args []string) error {
 	}
 	defer postgresDB.Close()
 
-	rows, err := postgresDB.GetDB().QueryContext(c.Context(), "SHOW search_path")
+	err = postgresDB.CheckPostgresDefaultSchema(c.Context(), schema, baseLogger)
 	if err != nil {
-		return fmt.Errorf("could not determine the search_path: %w", err)
-	}
-	defer rows.Close()
-
-	var schemas []string
-	for rows.Next() {
-		var s string
-		err = rows.Scan(&s)
-		if err != nil {
-			return fmt.Errorf("could not scan the schema for search_path: %w", err)
-		}
-		schemas = append(schemas, s)
-	}
-	if len(schemas) == 0 {
-		return fmt.Errorf("no value available for search_path")
-	} else if _, ok := slices.BinarySearch(schemas, schema); !ok {
-		baseLogger.Printf("could not find the default schema %q in search_path, consider setting it from the postgresql console\n", schema)
-		err = postgresDB.ExecQuery(c.Context(), fmt.Sprintf("SELECT pg_catalog.set_config('search_path', '\"$user\", %s', false)", schema))
-		if err != nil {
-			return fmt.Errorf("could not set search_path for the session: %w", err)
-		}
-		baseLogger.Printf("search_path is set to %q for the currrent session\n", schema)
-	}
-
-	assets := queries.Assets()
-	queries, err := assets.ReadDir("post-migrate")
-	if err != nil {
-		return err
+		return fmt.Errorf("could not check default schema: %w", err)
 	}
 
 	baseLogger.Println("running migrations..")
 
-	for _, query := range queries {
-		b, err := assets.ReadFile(filepath.Join("post-migrate", query.Name()))
-		if err != nil {
-			return fmt.Errorf("could not read embedded sql file: %w", err)
-		}
-
-		baseLogger.Printf("applying %s\n", query.Name())
-		err = postgresDB.ExecQuery(context.TODO(), string(b))
-		if err != nil {
-			return fmt.Errorf("error during running post-migrate queries: %w", err)
-		}
+	err = postgresDB.RunEmbeddedMigrations(queries.Assets(), "post-migrate", baseLogger)
+	if err != nil {
+		return fmt.Errorf("could not run migrations: %w", err)
 	}
 
 	baseLogger.Println("indexes created.")
+
 	return nil
 }
